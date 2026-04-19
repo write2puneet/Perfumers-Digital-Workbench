@@ -8,11 +8,11 @@ from rdkit.Chem import Draw
 import json
 import os
 
-# --- STREAMLIT CLOUD PERMISSION FIX ---
-# Redirect pyrfume to a writable directory to avoid [Errno 13]
+# FORCE PYRFUME TO A WRITABLE DIRECTORY
+# This must be at the very top of the script
 os.environ['PYRFUME_DATA'] = '/tmp/pyrfume-data'
 if not os.path.exists('/tmp/pyrfume-data'):
-    os.makedirs('/tmp/pyrfume-data')
+    os.makedirs('/tmp/pyrfume-data', exist_ok=True)
 
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="Perfumer's Digital Lab", page_icon="⚗️", layout="wide")
@@ -88,24 +88,18 @@ with tab2:
                         help="'molecules' for chemistry, 'behavior' for sensory ratings.")
     
     if st.button("Unbottle Data"):
-        try:
-            with st.spinner("Fetching data from digital archives..."):
-                path = f"{dataset_choice}/{file_type}"
-                results = pyrfume.load_data(path)
-                st.success(f"Viewing: {dataset_choice} / {file_type}")
-                st.dataframe(results, use_container_width=True)
-                
-                # --- NEW DOWNLOAD BUTTON ---
-                csv_data = convert_df(results)
-                st.download_button(
-                    label="📥 Download this data as CSV",
-                    data=csv_data,
-                    file_name=f"{dataset_choice}_{file_type}",
-                    mime='text/csv',
-                    help="Save this research data to your computer for offline analysis."
-                )
-        except Exception as e:
-            st.error(f"Data unavailable for this specific search. Error: {e}")
+    try:
+        with st.spinner("Accessing digital archives..."):
+            # Construct the dataset path
+            path = f"{dataset_choice}/{file_type}"
+            
+            # Use 'remote=True' to help bypass local file permission issues
+            results = pyrfume.load_data(path, remote=True) 
+            
+            st.success(f"Viewing: {dataset_choice} / {file_type}")
+            st.dataframe(results, use_container_width=True)
+    except Exception as e:
+        st.error(f"Data unavailable for this search. Error: {e}")
 
 # --- TAB 3: MOLECULAR LAB ---
 with tab3:

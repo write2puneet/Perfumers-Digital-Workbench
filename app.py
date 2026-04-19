@@ -1,29 +1,7 @@
-import os
-import sys
-import shutil
-
-# --- EMERGENCY OVERRIDE FOR STREAMLIT CLOUD PERMISSIONS ---
-# We force the library to look at a writable /tmp directory
-# 1. Setup writable paths
-writable_root = "/tmp"
-os.environ['HOME'] = writable_root
-os.environ['PYRFUME_DATA'] = os.path.join(writable_root, "pyrfume-data")
-
-# 2. Create the internal .pyrfume folder if it's missing
-pyrfume_config_path = os.path.join(writable_root, ".pyrfume")
-os.makedirs(pyrfume_config_path, exist_ok=True)
-
-# 3. Pre-create a dummy config.ini
-config_file = os.path.join(pyrfume_config_path, "config.ini")
-if not os.path.exists(config_file):
-    with open(config_file, "w") as f:
-        f.write("[main]\n")
-
 import streamlit as st
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import pyrfume
 from rdkit import Chem
 from rdkit.Chem import Draw
 import json
@@ -35,20 +13,23 @@ st.title("⚗️ The Perfumer's Digital Workbench")
 with st.expander("👋 Onboarding Guide: How to use this Lab"):
     st.markdown("""
     - **🏗️ Formula Architect**: Design scent profiles and find market matches.
-    - **📚 Ingredient Library**: Access professional research data from **Pyrfume**.
-    - **🔬 Molecular Lab**: Enter a **SMILES** code (e.g., `O=Cc1cc(OC)c(O)cc1` for Vanillin) to see its structure.
-    - **📂 My Archive**: Upload your personal JSON scent collections.
+    - **📚 Ingredient Library**: Access professional research data directly from GitHub.
+    - **🔬 Molecular Lab**: Enter a **SMILES** code (e.g., `O=Cc1cc(OC)c(O)cc1` for Vanillin).
+    - **📂 My Archive**: Upload your personal JSON collections.
     """)
 
 # --- HELPER FUNCTIONS ---
 @st.cache_data
-def convert_df(df):
-    return df.to_csv(index=False).encode('utf-8')
+def fetch_github_data(study, file):
+    """Bypasses Pyrfume library to fetch data directly from GitHub."""
+    base_url = "https://githubusercontent.com"
+    url = f"{base_url}/{study}/{file}"
+    return pd.read_csv(url)
 
 # --- TABS ---
 tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Formula Architect", "📚 Ingredient Library", "🔬 Molecular Lab", "📂 My Archive"])
 
-# --- TAB 1: FORMULA ARCHITECT ---
+# TAB 1: FORMULA ARCHITECT
 with tab1:
     st.header("Fragrance Formula Architect")
     col1, col2 = st.columns(2)
@@ -59,45 +40,42 @@ with tab1:
     with col2:
         st.subheader("Market Analysis")
         if st.button("Calculate Matches"):
-            st.info("Searching similar fragrance structures...")
-            st.write("✨ **Example Match**: Woody-Floral Accord found in *Santal 33*")
+            st.info("Market matches found!")
+            st.write("✨ **Example**: *Santal 33* matches your Woody preference.")
 
-# --- TAB 2: INGREDIENT LIBRARY ---
+# TAB 2: INGREDIENT LIBRARY (DIRECT FETCH FIX)
 with tab2:
     st.header("Global Ingredient Library")
-    st.info("💡 Pulling scientific data directly from the GitHub repository.")
+    st.info("💡 Data is fetched directly from the Pyrfume-Data GitHub to avoid permission errors.")
     
-    dataset_choice = st.selectbox("Select Study", ["bushdid_2014", "keller_2016", "snitz_2013"])
-    file_type = st.radio("Data View", ["molecules.csv", "behavior.csv"], horizontal=True)
+    study = st.selectbox("Select Study", ["bushdid_2014", "keller_2016", "snitz_2013"])
+    file = st.radio("Data View", ["molecules.csv", "behavior.csv"], horizontal=True)
     
     if st.button("Unbottle Data"):
         try:
-            with st.spinner("Streaming research data..."):
-                # FORCE remote=True to avoid touching local config files
-                results = pyrfume.load_data(f"{dataset_choice}/{file_type}", remote=True)
-                st.success(f"Viewing: {dataset_choice}")
+            with st.spinner("Streaming research data from GitHub..."):
+                results = fetch_github_data(study, file)
+                st.success(f"Viewing: {study}")
                 st.dataframe(results, use_container_width=True)
                 
                 # Download Button
-                st.download_button("📥 Download Results as CSV", convert_df(results), f"{dataset_choice}.csv", "text/csv")
+                csv = results.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Results as CSV", csv, f"{study}.csv", "text/csv")
         except Exception as e:
-            st.error(f"Search failed. Error: {e}")
+            st.error(f"Failed to fetch data. Ensure the study/file combination is correct. Error: {e}")
 
-# --- TAB 3: MOLECULAR LAB ---
+# TAB 3: MOLECULAR LAB
 with tab3:
-    st.header("Molecular Structure Visualizer")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        smiles_input = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1")
-    with col_b:
-        if st.button("Render Molecule"):
-            mol = Chem.MolFromSmiles(smiles_input)
-            if mol:
-                st.image(Draw.MolToImage(mol), caption="Chemical Structure")
-            else:
-                st.error("Invalid SMILES code.")
+    st.header("Scent Molecule Visualizer")
+    smiles_input = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1")
+    if st.button("Render Molecule"):
+        mol = Chem.MolFromSmiles(smiles_input)
+        if mol:
+            st.image(Draw.MolToImage(mol), caption="Chemical Structure")
+        else:
+            st.error("Invalid SMILES code.")
 
-# --- TAB 4: MY ARCHIVE ---
+# TAB 4: MY ARCHIVE
 with tab4:
     st.header("Personal Archive")
     uploaded_file = st.file_uploader("Upload JSON Archive", type="json")

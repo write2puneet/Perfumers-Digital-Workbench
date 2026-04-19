@@ -12,7 +12,6 @@ st.set_page_config(page_title="Perfumer's Creative Studio", page_icon="🎨", la
 st.title("🎨 The Perfumer's Creative Studio")
 
 # --- INGREDIENT DATABASE ---
-# Curated list of common perfumery ingredients
 INGREDIENT_OPTIONS = [
     "Custom (Type below)",
     "Aldehyde C-10", "Ambergris (Synth)", "Ambroxan", "Bergamot Oil", 
@@ -46,76 +45,81 @@ with tab1:
         fav_notes = st.multiselect("Desired Notes", ["Rose", "Sandalwood", "Amber", "Bergamot", "Jasmine", "Vanilla", "Oud", "Musk"])
     with col2:
         if st.button("Search Market"):
-            st.success("Calculated matches based on your profile.")
-            st.info("Check out fragrances with similar note structures in your chosen family.")
+            st.success("Analysis Complete")
+            st.info("Your profile aligns with modern niche structures.")
 
-# --- TAB 2: FORMULA LAB (WITH DROPDOWNS) ---
+# --- TAB 2: FORMULA LAB (FIXED & IMPROVED) ---
 with tab2:
     st.header("Accord & Formula Builder")
-    st.write("Select ingredients from the library or type your own.")
     
     if 'rows' not in st.session_state:
-        st.session_state.rows = [{"selected": "Bergamot Oil", "custom": "", "grams": 1.0}]
+        st.session_state.rows = [{"selected": "Bergamot Oil", "custom": "", "grams": 1.0, "note_type": "Top"}]
 
     def add_row():
-        st.session_state.rows.append({"selected": "Custom (Type below)", "custom": "", "grams": 0.0})
+        st.session_state.rows.append({"selected": "Custom (Type below)", "custom": "", "grams": 0.0, "note_type": "Heart"})
 
+    # Formula Input Section
     for i, row in enumerate(st.session_state.rows):
-        c1, c2, c3 = st.columns([2, 2, 1])
+        c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
         
-        # Column 1: Dropdown
-        st.session_state.rows[i]["selected"] = c1.selectbox(
-            f"Library Match {i+1}", 
-            INGREDIENT_OPTIONS, 
-            index=INGREDIENT_OPTIONS.index(row["selected"]),
-            key=f"sel_{i}"
-        )
-        
-        # Column 2: Custom Name (Enabled if 'Custom' is selected)
-        is_custom = st.session_state.rows[i]["selected"] == "Custom (Type below)"
-        st.session_state.rows[i]["custom"] = c2.text_input(
-            f"Custom Name {i+1}", 
-            value=row["custom"], 
-            disabled=not is_custom,
-            key=f"cust_{i}",
-            placeholder="Type ingredient here..."
-        )
-        
-        # Column 3: Weight
-        st.session_state.rows[i]["grams"] = c3.number_input("Grams", value=row["grams"], key=f"gram_{i}", format="%.3f")
+        # Safety check for index
+        current_val = row["selected"]
+        try:
+            default_ix = INGREDIENT_OPTIONS.index(current_val)
+        except ValueError:
+            default_ix = 0
 
-    st.button("➕ Add Ingredient Line", on_click=add_row)
+        st.session_state.rows[i]["selected"] = c1.selectbox(f"Library {i+1}", INGREDIENT_OPTIONS, index=default_ix, key=f"sel_{i}")
+        
+        is_custom = st.session_state.rows[i]["selected"] == "Custom (Type below)"
+        st.session_state.rows[i]["custom"] = c2.text_input(f"Name {i+1}", value=row["custom"], disabled=not is_custom, key=f"cust_{i}")
+        
+        st.session_state.rows[i]["note_type"] = c3.selectbox(f"Type {i+1}", ["Top", "Heart", "Base"], key=f"nt_{i}")
+        st.session_state.rows[i]["grams"] = c4.number_input(f"Grams {i+1}", value=row["grams"], format="%.3f", key=f"gram_{i}")
+
+    st.button("➕ Add Ingredient", on_click=add_row)
 
     # Calculation logic
     formula_data = []
     for r in st.session_state.rows:
         name = r["custom"] if r["selected"] == "Custom (Type below)" else r["selected"]
-        formula_data.append({"Ingredient": name, "Grams": r["grams"]})
+        if name or r["grams"] > 0:
+            formula_data.append({"Ingredient": name, "Note": r["note_type"], "Grams": r["grams"]})
 
-    formula_df = pd.DataFrame(formula_data)
-    total_grams = formula_df['Grams'].sum()
-    
-    if total_grams > 0:
-        formula_df['Percentage (%)'] = (formula_df['Grams'] / total_grams * 100).round(2)
-        st.subheader("Final Formula Breakdown")
-        st.table(formula_df)
-        st.write(f"**Total Weight:** {total_grams:.3f}g")
-        st.download_button("📥 Export CSV", formula_df.to_csv(index=False).encode('utf-8'), "my_formula.csv")
+    if formula_data:
+        formula_df = pd.DataFrame(formula_data)
+        total_grams = formula_df['Grams'].sum()
+        
+        if total_grams > 0:
+            formula_df['%'] = (formula_df['Grams'] / total_grams * 100).round(2)
+            
+            st.subheader("Formula Summary")
+            col_left, col_right = st.columns([2, 1])
+            
+            with col_left:
+                st.table(formula_df)
+                st.download_button("📥 Download Formula", formula_df.to_csv(index=False).encode('utf-8'), "formula.csv")
+            
+            with col_right:
+                st.write("**Olfactory Pyramid Breakdown**")
+                # Simple bar chart of Note Types
+                chart_data = formula_df.groupby('Note')['Grams'].sum()
+                st.bar_chart(chart_data)
 
 # --- TAB 3: MOLECULAR LAB ---
 with tab3:
     st.header("Molecular Scent Viewer")
-    sm_in = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1", help="Code for Vanillin")
+    sm_in = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1")
     if st.button("Draw Molecule"):
         mol = Chem.MolFromSmiles(sm_in)
         if mol:
-            st.image(Draw.MolToImage(mol, size=(400, 400)), caption="Chemical Structure")
+            st.image(Draw.MolToImage(mol, size=(400, 400)))
         else:
             st.error("Invalid SMILES.")
 
 # --- TAB 4: MY ARCHIVE ---
 with tab4:
     st.header("Personal JSON Archive")
-    up = st.file_uploader("Upload collections", type="json")
+    up = st.file_uploader("Upload Archive", type="json")
     if up:
         st.json(json.load(up))

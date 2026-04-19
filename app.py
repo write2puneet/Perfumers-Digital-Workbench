@@ -12,18 +12,18 @@ st.set_page_config(page_title="Perfumer's Digital Lab", page_icon="⚗️", layo
 st.title("⚗️ The Perfumer's Digital Workbench")
 with st.expander("👋 Onboarding Guide: How to use this Lab"):
     st.markdown("""
-    - **🏗️ Formula Architect**: Design scent profiles and find market matches.
-    - **📚 Ingredient Library**: Access professional research data directly from GitHub.
-    - **🔬 Molecular Lab**: Enter a **SMILES** code (e.g., `O=Cc1cc(OC)c(O)cc1` for Vanillin).
-    - **📂 My Archive**: Upload your personal JSON collections.
+    - **🏗️ Formula Architect**: Design scent profiles and find market matches based on olfactory families.
+    - **📚 Ingredient Library**: Access professional research data fetched directly from GitHub archives.
+    - **🔬 Molecular Lab**: Enter a **SMILES** code (e.g., `O=Cc1cc(OC)c(O)cc1`) to see its structure.
+    - **📂 My Archive**: Upload your personal JSON scent collections.
     """)
 
 # --- HELPER FUNCTIONS ---
 @st.cache_data
 def fetch_github_data(study, file):
-    """Bypasses Pyrfume library to fetch data directly from GitHub."""
-    base_url = "https://githubusercontent.com"
-    url = f"{base_url}/{study}/{file}"
+    """Fetches data directly from GitHub to bypass permission errors."""
+    # Using the raw content URL for the main pyrfume-data repository
+    url = f"https://githubusercontent.com{study}/{file}"
     return pd.read_csv(url)
 
 # --- TABS ---
@@ -40,44 +40,44 @@ with tab1:
     with col2:
         st.subheader("Market Analysis")
         if st.button("Calculate Matches"):
-            st.info("Market matches found!")
-            st.write("✨ **Example**: *Santal 33* matches your Woody preference.")
+            st.info("Market matches found! Sample output:")
+            st.write("✨ **Baccarat Rouge 540**: High match for Oriental profiles.")
 
-# TAB 2: INGREDIENT LIBRARY (DIRECT FETCH FIX)
+# TAB 2: INGREDIENT LIBRARY (BYPASSES PYRFUME LIBRARY ERRORS)
 with tab2:
     st.header("Global Ingredient Library")
-    st.info("💡 Data is fetched directly from the Pyrfume-Data GitHub to avoid permission errors.")
+    st.info("💡 Pro Tip: If a search fails, try 'bushdid_2014' or 'keller_2016' first.")
     
-    study = st.selectbox("Select Study", ["bushdid_2014", "keller_2016", "snitz_2013"])
+    study = st.selectbox("Select Study", ["bushdid_2014", "keller_2016", "snitz_2013", "dravnieks_1985"])
     file = st.radio("Data View", ["molecules.csv", "behavior.csv"], horizontal=True)
     
     if st.button("Unbottle Data"):
         try:
             with st.spinner("Streaming research data from GitHub..."):
                 results = fetch_github_data(study, file)
-                st.success(f"Viewing: {study}")
+                st.success(f"Viewing: {study} / {file}")
                 st.dataframe(results, use_container_width=True)
                 
                 # Download Button
                 csv = results.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Results as CSV", csv, f"{study}.csv", "text/csv")
+                st.download_button("📥 Download as CSV", csv, f"{study}_{file}", "text/csv")
         except Exception as e:
-            st.error(f"Failed to fetch data. Ensure the study/file combination is correct. Error: {e}")
+            st.error(f"Failed to fetch data. This study might not contain this specific file type. (Error: {e})")
 
 # TAB 3: MOLECULAR LAB
 with tab3:
-    st.header("Scent Molecule Visualizer")
-    smiles_input = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1")
+    st.header("Molecular Structure Visualizer")
+    sm_in = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1", help="Example: Vanillin")
     if st.button("Render Molecule"):
-        mol = Chem.MolFromSmiles(smiles_input)
+        mol = Chem.MolFromSmiles(sm_in)
         if mol:
-            st.image(Draw.MolToImage(mol), caption="Chemical Structure")
+            st.image(Draw.MolToImage(mol, size=(400, 400)), caption="Chemical Structure")
         else:
-            st.error("Invalid SMILES code.")
+            st.error("Invalid SMILES code. Please try a valid string like CC1=CCC(CC1)C(=C)C.")
 
 # TAB 4: MY ARCHIVE
 with tab4:
     st.header("Personal Archive")
-    uploaded_file = st.file_uploader("Upload JSON Archive", type="json")
-    if uploaded_file:
-        st.json(json.load(uploaded_file))
+    up = st.file_uploader("Upload JSON Archive", type="json")
+    if up:
+        st.json(json.load(up))

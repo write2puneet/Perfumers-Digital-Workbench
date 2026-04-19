@@ -10,16 +10,20 @@ import json
 st.set_page_config(page_title="Perfumer's Creative Studio", page_icon="🎨", layout="wide")
 
 st.title("🎨 The Perfumer's Creative Studio")
-st.markdown("A professional workspace for scent architecture, molecular study, and formula management.")
 
-# --- HELP & ONBOARDING ---
-with st.expander("👋 New to the Studio? Start here"):
-    st.markdown("""
-    - **🏗️ Market Recommender**: Find existing fragrances that match your desired profile.
-    - **🧪 Formula Lab**: Build a custom scent accord and calculate ingredient percentages.
-    - **🔬 Molecular Lab**: Visualize the chemical structure of your raw materials.
-    - **📂 My Archive**: Manage your private formula collection (JSON).
-    """)
+# --- INGREDIENT DATABASE ---
+# Curated list of common perfumery ingredients
+INGREDIENT_OPTIONS = [
+    "Custom (Type below)",
+    "Aldehyde C-10", "Ambergris (Synth)", "Ambroxan", "Bergamot Oil", 
+    "Calone", "Cedarwood Virginia", "Civet (Synth)", "Coumarin", 
+    "Ethyl Vanillin", "Galaxolide", "Geranium Oil", "Hedione", 
+    "Indole", "Iso E Super", "Jasmine Abs", "Lavender Oil", 
+    "Lemon Oil", "Linalool", "Mandarin Oil", "Musk Ketone", 
+    "Neroli Oil", "Oakmoss Reconstitution", "Patchouli Oil", 
+    "Pink Pepper Oil", "Rose Absolute", "Sandalwood Mysore", 
+    "Vetiveryl Acetate", "Ylang Ylang Oil"
+]
 
 # --- TABS ---
 tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Market Recommender", "🧪 Formula Lab", "🔬 Molecular Lab", "📂 My Archive"])
@@ -28,7 +32,6 @@ tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Market Recommender", "🧪 Formula La
 with tab1:
     st.header("Fragrance Market Analysis")
     col1, col2 = st.columns(2)
-    
     data = {
         'name': ['Baccarat Rouge 540', 'Sauvage', 'Black Opium', 'Chanel No 5', 'Aventus', 'Cloud', 'Santal 33'],
         'family': ['Oriental', 'Fougere', 'Oriental', 'Floral', 'Chypre', 'Gourmand', 'Woody'],
@@ -41,56 +44,78 @@ with tab1:
     with col1:
         fav_family = st.selectbox("Desired Family", df['family'].unique())
         fav_notes = st.multiselect("Desired Notes", ["Rose", "Sandalwood", "Amber", "Bergamot", "Jasmine", "Vanilla", "Oud", "Musk"])
-    
     with col2:
         if st.button("Search Market"):
-            st.success("Calculated top market matches for your profile:")
-            st.info(f"✨ **{df.iloc[0]['name']}** - A strong match for {fav_family} profiles.")
+            st.success("Calculated matches based on your profile.")
+            st.info("Check out fragrances with similar note structures in your chosen family.")
 
-# --- TAB 2: FORMULA LAB (NEW!) ---
+# --- TAB 2: FORMULA LAB (WITH DROPDOWNS) ---
 with tab2:
     st.header("Accord & Formula Builder")
-    st.write("Add your ingredients and their weights (in grams) to architect a new formula.")
+    st.write("Select ingredients from the library or type your own.")
     
     if 'rows' not in st.session_state:
-        st.session_state.rows = [{"ingredient": "Bergamot", "grams": 1.0}]
+        st.session_state.rows = [{"selected": "Bergamot Oil", "custom": "", "grams": 1.0}]
 
     def add_row():
-        st.session_state.rows.append({"ingredient": "", "grams": 0.0})
+        st.session_state.rows.append({"selected": "Custom (Type below)", "custom": "", "grams": 0.0})
 
     for i, row in enumerate(st.session_state.rows):
-        c1, c2 = st.columns([3, 1])
-        st.session_state.rows[i]["ingredient"] = c1.text_input(f"Ingredient {i+1}", value=row["ingredient"], key=f"ing_{i}")
-        st.session_state.rows[i]["grams"] = c2.number_input("Grams", value=row["grams"], key=f"gram_{i}")
+        c1, c2, c3 = st.columns([2, 2, 1])
+        
+        # Column 1: Dropdown
+        st.session_state.rows[i]["selected"] = c1.selectbox(
+            f"Library Match {i+1}", 
+            INGREDIENT_OPTIONS, 
+            index=INGREDIENT_OPTIONS.index(row["selected"]),
+            key=f"sel_{i}"
+        )
+        
+        # Column 2: Custom Name (Enabled if 'Custom' is selected)
+        is_custom = st.session_state.rows[i]["selected"] == "Custom (Type below)"
+        st.session_state.rows[i]["custom"] = c2.text_input(
+            f"Custom Name {i+1}", 
+            value=row["custom"], 
+            disabled=not is_custom,
+            key=f"cust_{i}",
+            placeholder="Type ingredient here..."
+        )
+        
+        # Column 3: Weight
+        st.session_state.rows[i]["grams"] = c3.number_input("Grams", value=row["grams"], key=f"gram_{i}", format="%.3f")
 
-    st.button("➕ Add Ingredient", on_click=add_row)
+    st.button("➕ Add Ingredient Line", on_click=add_row)
 
     # Calculation logic
-    formula_df = pd.DataFrame(st.session_state.rows)
-    total_grams = formula_df['grams'].sum()
+    formula_data = []
+    for r in st.session_state.rows:
+        name = r["custom"] if r["selected"] == "Custom (Type below)" else r["selected"]
+        formula_data.append({"Ingredient": name, "Grams": r["grams"]})
+
+    formula_df = pd.DataFrame(formula_data)
+    total_grams = formula_df['Grams'].sum()
+    
     if total_grams > 0:
-        formula_df['Percentage (%)'] = (formula_df['grams'] / total_grams * 100).round(2)
+        formula_df['Percentage (%)'] = (formula_df['Grams'] / total_grams * 100).round(2)
         st.subheader("Final Formula Breakdown")
         st.table(formula_df)
-        st.write(f"**Total Weight:** {total_grams:.2f}g")
-        
-        # Export as CSV
-        st.download_button("📥 Export Formula (CSV)", formula_df.to_csv(index=False).encode('utf-8'), "my_formula.csv")
+        st.write(f"**Total Weight:** {total_grams:.3f}g")
+        st.download_button("📥 Export CSV", formula_df.to_csv(index=False).encode('utf-8'), "my_formula.csv")
 
 # --- TAB 3: MOLECULAR LAB ---
 with tab3:
     st.header("Molecular Scent Viewer")
-    smiles_input = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1", help="Code for Vanillin")
+    sm_in = st.text_input("Enter SMILES Code", "O=Cc1cc(OC)c(O)cc1", help="Code for Vanillin")
     if st.button("Draw Molecule"):
-        mol = Chem.MolFromSmiles(smiles_input)
+        mol = Chem.MolFromSmiles(sm_in)
         if mol:
             st.image(Draw.MolToImage(mol, size=(400, 400)), caption="Chemical Structure")
         else:
-            st.error("Invalid SMILES. Try `CC1=CCC(CC1)C(=C)C` (Limonene)")
+            st.error("Invalid SMILES.")
 
 # --- TAB 4: MY ARCHIVE ---
 with tab4:
     st.header("Personal JSON Archive")
-    up = st.file_uploader("Upload your collections", type="json")
+    up = st.file_uploader("Upload collections", type="json")
     if up:
         st.json(json.load(up))

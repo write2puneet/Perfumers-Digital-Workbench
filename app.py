@@ -88,18 +88,18 @@ with tab2:
                         help="'molecules' for chemistry, 'behavior' for sensory ratings.")
     
     if st.button("Unbottle Data"):
-    try:
-        with st.spinner("Accessing digital archives..."):
-            # Construct the dataset path
-            path = f"{dataset_choice}/{file_type}"
-            
-            # Use 'remote=True' to help bypass local file permission issues
-            results = pyrfume.load_data(path, remote=True) 
-            
-            st.success(f"Viewing: {dataset_choice} / {file_type}")
-            st.dataframe(results, use_container_width=True)
-    except Exception as e:
-        st.error(f"Data unavailable for this search. Error: {e}")
+        try:
+            with st.spinner("Accessing digital archives..."):
+                # Construct the dataset path
+                path = f"{dataset_choice}/{file_type}"
+                
+                # Use 'remote=True' to help bypass local file permission issues
+                results = pyrfume.load_data(path, remote=True) 
+                
+                st.success(f"Viewing: {dataset_choice} / {file_type}")
+                st.dataframe(results, use_container_width=True)
+        except Exception as e:
+            st.error(f"Data unavailable for this search. Error: {e}")
 
 # --- TAB 3: MOLECULAR LAB ---
 with tab3:
